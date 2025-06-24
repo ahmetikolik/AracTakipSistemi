@@ -31,6 +31,8 @@ import javax.swing.table.DefaultTableModel;
 //Ekstra (JTextComponent, EventListener vs.)
 import javax.swing.text.JTextComponent;
 
+
+
 //AWT
 import java.awt.BorderLayout;
 import java.awt.Color;
