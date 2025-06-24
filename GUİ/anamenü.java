@@ -30,7 +30,7 @@ import javax.swing.table.DefaultTableModel;
 
 //Ekstra (JTextComponent, EventListener vs.)
 import javax.swing.text.JTextComponent;
-weqqqeqwwwwwwwwww
+
 //AWT
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -250,12 +250,9 @@ public class anamenü {
     private JPanel createDriverPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         // 🔼 Sürücü ekleme formu
-        JPanel eklemeSatiri = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        eklemeSatiri.setAlignmentX(Component.LEFT_ALIGNMENT);
-
+        JPanel eklemeSatiri = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JLabel label = new JLabel("Sürücü İsmi: ");
         JTextField textField = new JTextField(20);
         JButton btnEkle = new JButton("Ekle");
@@ -263,9 +260,10 @@ public class anamenü {
         eklemeSatiri.add(label);
         eklemeSatiri.add(textField);
         eklemeSatiri.add(btnEkle);
+        eklemeSatiri.setAlignmentX(Component.LEFT_ALIGNMENT); // Sola hizalama
         panel.add(eklemeSatiri);
 
-        // 🔽 Ekleme butonunun işlevi
+        // 🔽 Butonun işlevi
         btnEkle.addActionListener(e -> {
             String adSoyad = textField.getText().trim();
             if (adSoyad.isEmpty()) {
@@ -273,12 +271,7 @@ public class anamenü {
                 return;
             }
 
-            int onay = JOptionPane.showConfirmDialog(
-                frame,
-                adSoyad + " isimli sürücüyü eklemek istiyor musunuz?",
-                "Onay",
-                JOptionPane.YES_NO_OPTION
-            );
+            int onay = JOptionPane.showConfirmDialog(frame, adSoyad + " isimli sürücüyü eklemek istiyor musunuz?", "Onay", JOptionPane.YES_NO_OPTION);
             if (onay != JOptionPane.YES_OPTION) return;
 
             try (BufferedWriter writer = new BufferedWriter(new FileWriter("suruculer.csv", true))) {
@@ -286,37 +279,38 @@ public class anamenü {
                 writer.newLine();
                 JOptionPane.showMessageDialog(frame, "✅ Sürücü eklendi: " + adSoyad);
                 textField.setText("");
-                setFormPanel(createDriverPanel()); // Paneli yenile
+
+                // 🔄 Paneli yeniden yükle
+                setFormPanel(createDriverPanel());
+
+                // 🔁 Eğer sekmeli yapı varsa sürücü sekmesine geç
+                // tabbedPane.setSelectedIndex(1);
+
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(frame, "Hata: " + ex.getMessage());
             }
         });
 
+
+        // 🔽 Kayıtlı sürücüleri göster
         panel.add(new JLabel("📋 Kayıtlı Sürücüler:"));
 
         JPanel surucuListesi = new JPanel();
         surucuListesi.setLayout(new BoxLayout(surucuListesi, BoxLayout.Y_AXIS));
-        surucuListesi.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         try (Scanner sc = new Scanner(new File("suruculer.csv"))) {
             while (sc.hasNextLine()) {
                 String isim = sc.nextLine().trim();
                 if (isim.isEmpty()) continue;
 
-                JPanel satir = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-                satir.setAlignmentX(Component.LEFT_ALIGNMENT);
-
+                JPanel satir = new JPanel(new FlowLayout(FlowLayout.LEFT));
                 satir.add(new JLabel("👤 " + isim));
 
                 JButton btnSil = new JButton("❌ Sil");
                 btnSil.addActionListener(ev -> {
-                    int onay = JOptionPane.showConfirmDialog(
-                        frame,
-                        isim + " isimli sürücüyü silmek istiyor musunuz?",
-                        "Silme Onayı",
-                        JOptionPane.YES_NO_OPTION
-                    );
-
+                    int onay = JOptionPane.showConfirmDialog(frame,
+                            isim + " isimli sürücüyü silmek istiyor musunuz?",
+                            "Silme Onayı", JOptionPane.YES_NO_OPTION);
                     if (onay == JOptionPane.YES_OPTION) {
                         try {
                             List<String> lines = new ArrayList<>();
@@ -336,6 +330,7 @@ public class anamenü {
                 });
 
                 satir.add(btnSil);
+                satir.setAlignmentX(Component.LEFT_ALIGNMENT);
                 surucuListesi.add(satir);
             }
         } catch (IOException ex) {
@@ -345,16 +340,12 @@ public class anamenü {
         JScrollPane scroll = new JScrollPane(surucuListesi);
         scroll.setPreferredSize(new Dimension(520, 200));
         scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-
-        Box scrollWrapper = Box.createVerticalBox();
-        scrollWrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
-        scrollWrapper.add(scroll);
-
-        panel.add(scrollWrapper);
-
+        panel.add(scroll);
+        
         return panel;
     }
+
+
 
 
 
@@ -692,7 +683,12 @@ public class anamenü {
         formPanel.add(newPanel);
         formPanel.revalidate();
         formPanel.repaint();
-        yenidenTabloyuYukle(); // Her sekme değişiminde tabloyu geri yükle
+
+        // Bu satırı EKLE: JComboBox gibi bileşenleri güncellemesi için
+        frame.revalidate();
+        frame.repaint();
+
+        yenidenTabloyuYukle(); // Eğer tablo da güncellenecekse
     }
 
     // createReportPanel metodu güncellendi
@@ -893,11 +889,7 @@ public class anamenü {
                 String surucu = rowData[0].toString().trim();
                 if (surucu.isEmpty()) continue;
 
-                if (!mevcutSuruculer.contains(surucu)) {
-                    writer.write(surucu);
-                    writer.newLine();
-                    mevcutSuruculer.add(surucu);
-                }
+               
 
                 model.insertRow(0, rowData);
             }
