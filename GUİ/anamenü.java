@@ -30,7 +30,7 @@ import javax.swing.table.DefaultTableModel;
 
 //Ekstra (JTextComponent, EventListener vs.)
 import javax.swing.text.JTextComponent;
-gfgdfgdfs
+weqqqeqwwwwwwwwww
 //AWT
 import java.awt.BorderLayout;
 import java.awt.Color;
