@@ -2,6 +2,8 @@ package GUİ;
 
 //POI - Excel işlemleri
 import GUİ.ExcelExporter;
+
+
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
@@ -17,17 +19,20 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
-
+import javax.swing.table.JTableHeader;
 //Ekstra (JTextComponent, EventListener vs.)
 import javax.swing.text.JTextComponent;
 
@@ -42,7 +47,8 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 //IO
 import java.io.BufferedWriter;
 import java.io.File;
@@ -53,7 +59,11 @@ import java.io.IOException;
 //Veri yapıları
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 //Tarih bileşeni (JDateChooser)
 import com.toedter.calendar.JDateChooser;
@@ -63,6 +73,7 @@ public class anamenü {
     private JTable table;
     private DefaultTableModel tableModel;
     private JPanel formPanel;
+    private JPanel filtrePanel; 
 
     public anamenü() {
         initialize();
@@ -91,6 +102,19 @@ public class anamenü {
         } catch (IOException e) {
             JOptionPane.showMessageDialog(frame, "Bakım güncellenemedi: " + e.getMessage());
         }
+    }
+
+    private void setFormPanel(JPanel newPanel) {
+        formPanel.removeAll();
+        formPanel.add(newPanel);
+        formPanel.revalidate();
+        formPanel.repaint();
+
+        // Bu satırı EKLE: JComboBox gibi bileşenleri güncellemesi için
+        frame.revalidate();
+        frame.repaint();
+
+        yenidenTabloyuYukle(); // Eğer tablo da güncellenecekse
     }
     private int hesaplaToplamGelir(String plaka) {
         int toplam = 0;
@@ -130,14 +154,18 @@ public class anamenü {
         return toplam;
     }
     private boolean plakaGecerliMi(String plaka) {
-        // Türk plakaları için: örneğin 34ABC123
+        // Türk plakaları için: 34ABC123
         String turkRegex = "^(0[1-9]|[1-7][0-9]|8[0-1]) ?[A-Z]{1,3} ?\\d{2,4}$";
-        
-        // Alman plakaları için: örneğin B AB 1234
+
+        // Alman plakaları için: B-AB 1234
         String almanRegex = "^[A-ZÄÖÜ]{1,3}-[A-Z]{1,2} \\d{1,4}$";
 
-        return plaka.matches(turkRegex) || plaka.matches(almanRegex);
+        // Taksi plakaları için: AC TX 711, AC TX 72, vb.
+        String taksiRegex = "^[A-Z]{1,3} TX \\d{1,4}$";
+
+        return plaka.matches(turkRegex) || plaka.matches(almanRegex) || plaka.matches(taksiRegex);
     }
+
 
 
 
@@ -155,8 +183,8 @@ public class anamenü {
 
         Font anaFont = new Font("Segoe UI", Font.PLAIN, 14);
         JPanel ustPanel = new JPanel(new BorderLayout(10, 10));
-
         JPanel butonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+
         JButton btnSurusEkle = new JButton("Fahrt hinzufügen");
         JButton btnAddDriver = new JButton("Fahrer hinzufügen");
         JButton btnAddPlate = new JButton("Kennzeichen hinzufügen");
@@ -167,87 +195,142 @@ public class anamenü {
             butonPanel.add(b);
         }
 
-        ustPanel.add(butonPanel, BorderLayout.NORTH);
-
         formPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
-        ustPanel.add(formPanel, BorderLayout.CENTER);
-        frame.add(ustPanel, BorderLayout.NORTH);
+        JPanel ustIcPanel = new JPanel(new BorderLayout());
+        ustIcPanel.add(butonPanel, BorderLayout.WEST);
 
-     // 1. Tablo sütun başlıkları – "Sil" sütunu eklendi
-        String[] columns = {
-            "Sürücü", "Plaka", "Tarih", "Başlangıç KM", "Bitiş KM",
-            "Bar", "RF", "Tanken", "Sonstig", "CC",
-            "Umsatz", "Diff.-km", "Gef.-km", "Durs.-km", "Übergabe", "Vorschuss", "Sil"
-        };
-
-        // 2. DefaultTableModel oluşturuluyor – hücreler düzenlenemez
-        tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                // Sadece veri sütunları düzenlenebilir: 0–15 arası
-                return column >= 0 && column <= 16;
-            }
-        };
-
-        // 3. JTable oluşturuluyor
-        table = new JTable(tableModel);
-        // 4. "Sil" sütununa özel render ve editor atanıyor
-        table.getColumn("Sil").setCellRenderer(new ButtonRenderer());
-        table.getColumn("Sil").setCellEditor(new ButtonEditor(new JCheckBox(), table, tableModel));
-
-        // 5. İsteğe bağlı: satır yüksekliği ve sütun genişliği ayarı
-        table.setRowHeight(30);
-        table.getColumn("Sil").setMaxWidth(50);
-
-        // 6. JScrollPane içine tabloyu koymak:
-        JScrollPane scrollPane = new JScrollPane(table);
-        frame.add(scrollPane);  // `createSurusPanel()` içinde eklenmeli
-
-
-        btnAddDriver.addActionListener(e -> setFormPanel(createDriverPanel()));
-        btnAddPlate.addActionListener(e -> setFormPanel(createPlatePanel()));
-        btnRapor.addActionListener(e -> setFormPanel(createReportPanel()));
-        btnSurusEkle.addActionListener(e -> setFormPanel(createSurusPanel()));
-
-        frame.setVisible(true);
-
-        // ✅ Excel'den verileri oku (başlıklarla uyumlu)
-        exceldenTabloyaOku(seciliExcelYolu, tableModel);
-     // GÜNCELLEME BUTONU
-     // Sağ üst köşe için güncelleme butonu paneli
-        JPanel guncellePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
         JButton btnGuncelle = new JButton("Güncellemeleri Kaydet");
         btnGuncelle.setFont(anaFont);
         btnGuncelle.addActionListener(e -> {
             try {
-            	ExcelExporter.exportToExcel(tableModel, seciliExcelYolu);
+                ExcelExporter.exportToExcel(tableModel, seciliExcelYolu);
                 JOptionPane.showMessageDialog(frame, "Değişiklikler başarıyla Excel dosyasına kaydedildi.");
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(frame, "Kaydetme hatası: " + ex.getMessage());
             }
         });
-        guncellePanel.add(btnGuncelle);
 
-        // Üst panelin içine hem sol hem sağ bileşenleri koymak için ana panel:
-        JPanel ustIcPanel = new JPanel(new BorderLayout());
-        ustIcPanel.add(butonPanel, BorderLayout.WEST);
-        ustIcPanel.add(guncellePanel, BorderLayout.EAST);
-
-        ustPanel.add(ustIcPanel, BorderLayout.NORTH);
         JButton btnExcelSec = new JButton("Excel Dosyası Seç");
         btnExcelSec.setFont(anaFont);
         btnExcelSec.addActionListener(e -> {
-            javax.swing.JFileChooser fileChooser = new javax.swing.JFileChooser();
+            JFileChooser fileChooser = new JFileChooser();
             int secim = fileChooser.showOpenDialog(frame);
-            if (secim == javax.swing.JFileChooser.APPROVE_OPTION) {
+            if (secim == JFileChooser.APPROVE_OPTION) {
                 File secilenDosya = fileChooser.getSelectedFile();
                 seciliExcelYolu = secilenDosya.getAbsolutePath();
                 exceldenTabloyaOku(seciliExcelYolu, tableModel);
                 JOptionPane.showMessageDialog(frame, "Excel dosyası yüklendi:\n" + seciliExcelYolu);
             }
         });
+
+        JPanel guncellePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
+        guncellePanel.add(btnGuncelle);
         guncellePanel.add(btnExcelSec);
+
+        ustIcPanel.add(guncellePanel, BorderLayout.EAST);
+        ustPanel.add(ustIcPanel, BorderLayout.NORTH);
+        ustPanel.add(formPanel, BorderLayout.CENTER);
+        frame.add(ustPanel, BorderLayout.NORTH);
+
+        String[] columns = {
+            "Sürücü", "Plaka", "Tarih", "Başlangıç KM", "Bitiş KM",
+            "Bar", "RF", "Tanken", "Sonstig", "CC",
+            "Umsatz", "Diff.-km", "Gef.-km", "Durs.-km", "Übergabe", "Vorschuss", "Sil"
+        };
+
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column >= 0 && column <= 16;
+            }
+        };
+
+        table = new JTable(tableModel);
+        table.setRowHeight(30);
+        table.getColumn("Sil").setCellRenderer(new ButtonRenderer());
+        table.getColumn("Sil").setCellEditor(new ButtonEditor(new JCheckBox(), table, tableModel));
+        table.getColumn("Sil").setMaxWidth(50);
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        frame.add(scrollPane);
+
+        btnAddDriver.addActionListener(e -> setFormPanel(createDriverPanel()));
+        btnAddPlate.addActionListener(e -> setFormPanel(createPlatePanel()));
+        btnRapor.addActionListener(e -> setFormPanel(createReportPanel()));
+        btnSurusEkle.addActionListener(e -> setFormPanel(createSurusPanel()));
+
+        JTableHeader header = table.getTableHeader();
+        header.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int columnIndex = table.columnAtPoint(e.getPoint());
+                String columnName = table.getColumnName(columnIndex);
+
+                if (!(columnName.equals("Sürücü") || columnName.equals("Plaka") || columnName.equals("Tarih"))) return;
+
+                Set<String> secenekler = new TreeSet<>();
+                for (int i = 0; i < tableModel.getRowCount(); i++) {
+                    Object value = tableModel.getValueAt(i, columnIndex);
+                    if (value != null) secenekler.add(value.toString());
+                }
+
+                JPopupMenu popup = new JPopupMenu();
+
+                JMenuItem tumunuGoster = new JMenuItem("Tümünü Göster");
+                tumunuGoster.addActionListener(ev -> yenidenTabloyuYukle());
+                popup.add(tumunuGoster);
+
+                if (columnName.equals("Tarih")) {
+                    JPanel panel = new JPanel();
+                    JTextField txtTarih = new JTextField(10);
+                    JButton btnFiltrele = new JButton("Filtrele");
+
+                    btnFiltrele.addActionListener(ev -> {
+                        String secili = txtTarih.getText().trim();
+                        if (secili.isEmpty()) return;
+
+                        for (int i = tableModel.getRowCount() - 1; i >= 0; i--) {
+                            String cellValue = tableModel.getValueAt(i, columnIndex).toString();
+                            if (!cellValue.equals(secili)) {
+                                tableModel.removeRow(i);
+                            }
+                        }
+                    });
+
+                    panel.add(new JLabel("Tarih (gg.aa.yyyy):"));
+                    panel.add(txtTarih);
+                    panel.add(btnFiltrele);
+                    popup.add(panel);
+                }
+ else {
+                    for (String secenek : secenekler) {
+                        JMenuItem item = new JMenuItem(secenek);
+                        item.addActionListener(ev -> {
+                            for (int i = tableModel.getRowCount() - 1; i >= 0; i--) {
+                                String cellValue = tableModel.getValueAt(i, columnIndex).toString();
+                                if (!cellValue.equals(secenek)) {
+                                    tableModel.removeRow(i);
+                                }
+                            }
+                        });
+                        popup.add(item);
+                    }
+                }
+
+                popup.show(header, e.getX(), header.getHeight());
+            }
+        });
+
+        frame.setVisible(true);
+        exceldenTabloyaOku(seciliExcelYolu, tableModel);
     }
+
+
+
+
+   
+   
+
 
     private JPanel createDriverPanel() {
         JPanel panel = new JPanel();
@@ -417,7 +500,7 @@ public class anamenü {
                     int sonKm = Integer.parseInt(parts[2]);
                     int bakimDurum = Integer.parseInt(parts[3]);
 
-                    int kalanKm = (bakimDurum == 1) ? Math.max(15000 - (sonKm - basKm), 0) : 0;
+                    int kalanKm = 15000 - (sonKm - basKm);
                     int toplamGelir = hesaplaToplamGelir(plaka);
 
                     JPanel satir = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
@@ -602,10 +685,10 @@ public class anamenü {
                 // Hesaplamalar
                 int gefKm = bitKm - basKm;
                 int diffKm = gefKm;
-                double umsatz = bar + rf - sonstig + cc - tanken;
+                double umsatz = bar + rf  + cc ;
                 double dursKm = (umsatz / gefKm);
                 double vorschuss = umsatz * 0.4;
-                double teslim = umsatz - vorschuss;
+                double teslim = umsatz - vorschuss - sonstig - tanken;
 
                 Object[] row = {
                     surucu, plaka, tarih, basKm, bitKm,
@@ -627,9 +710,19 @@ public class anamenü {
                     if (parts[0].equals(plaka)) {
                         int eskiBas = Integer.parseInt(parts[1]);
                         int bakim = Integer.parseInt(parts[3]);
-                        int yeniBakim = (bitKm - eskiBas) >= 15000 ? 0 : bakim;
-                        int yeniBas = (bitKm - eskiBas) >= 15000 ? bitKm : eskiBas;
-                        lines.add(plaka + "," + yeniBas + "," + bitKm + "," + yeniBakim);
+                        int yeniBakim;
+                        int yeniBas;
+
+                        int fark = bitKm - eskiBas;
+
+                        if (fark >= 15000) {
+                            yeniBakim = 0;      // bakım zamanı geldi, artık bakımsız
+                            yeniBas = bitKm;    // başlangıç km, yeni bitiş km'ye çekilir
+                        } else {
+                            yeniBakim = bakim;  // önceki bakım durumu korunur
+                            yeniBas = eskiBas;  // başlangıç km olduğu gibi kalır
+                        }
+                        lines.add(plaka + "," + eskiBas+ "," + bitKm + "," + yeniBakim);
                     } else {
                         lines.add(line);
                     }
@@ -680,18 +773,7 @@ public class anamenü {
     }
 
     // setFormPanel metodu güncellendi
-    private void setFormPanel(JPanel newPanel) {
-        formPanel.removeAll();
-        formPanel.add(newPanel);
-        formPanel.revalidate();
-        formPanel.repaint();
-
-        // Bu satırı EKLE: JComboBox gibi bileşenleri güncellemesi için
-        frame.revalidate();
-        frame.repaint();
-
-        yenidenTabloyuYukle(); // Eğer tablo da güncellenecekse
-    }
+  
 
     // createReportPanel metodu güncellendi
  // createReportPanel metodu güncel hali
@@ -760,7 +842,7 @@ public class anamenü {
         }
 
         btnFiltrele.addActionListener(e -> {
-            yenidenTabloyuYukle();
+            yenidenTabloyuYukle(); // 📌 Tüm veriyi yüklemeden önce tablo temizlenir ve tekrar doldurulur
 
             java.util.Date basDate = baslangicChooser.getDate();
             java.util.Date bitDate = bitisChooser.getDate();
@@ -772,10 +854,13 @@ public class anamenü {
                 return;
             }
 
+            java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("dd.MM.yyyy");
+
+            // 🔽 FİLTRELEME
             for (int i = tableModel.getRowCount() - 1; i >= 0; i--) {
                 try {
                     String tarihStr = tableModel.getValueAt(i, 2).toString();
-                    java.util.Date satirTarihi = new java.text.SimpleDateFormat("dd.MM.yyyy").parse(tarihStr);
+                    java.util.Date satirTarihi = df.parse(tarihStr);
 
                     String plaka = tableModel.getValueAt(i, 1).toString();
                     String surucu = tableModel.getValueAt(i, 0).toString();
@@ -792,14 +877,22 @@ public class anamenü {
                 }
             }
 
+            // 🔽 ÖZET DEĞERLERİ HESAPLA
             double toplamUmsatz = 0, toplamTanken = 0, toplamSonstig = 0, toplamTeslim = 0, toplamVorschuss = 0;
+
             for (int i = 0; i < tableModel.getRowCount(); i++) {
                 try {
-                    toplamUmsatz += Double.parseDouble(tableModel.getValueAt(i, 10).toString());
-                    toplamTanken += Double.parseDouble(tableModel.getValueAt(i, 7).toString());
-                    toplamSonstig += Double.parseDouble(tableModel.getValueAt(i, 8).toString());
-                    toplamTeslim += Double.parseDouble(tableModel.getValueAt(i, 14).toString());
-                    toplamVorschuss += Double.parseDouble(tableModel.getValueAt(i, 15).toString());
+                    String umsatzStr = tableModel.getValueAt(i, 10).toString().replace(",", ".").trim();
+                    String tankenStr = tableModel.getValueAt(i, 7).toString().replace(",", ".").trim();
+                    String sonstigStr = tableModel.getValueAt(i, 8).toString().replace(",", ".").trim();
+                    String teslimStr = tableModel.getValueAt(i, 14).toString().replace(",", ".").trim();
+                    String vorschussStr = tableModel.getValueAt(i, 15).toString().replace(",", ".").trim();
+
+                    toplamUmsatz += Double.parseDouble(umsatzStr);
+                    toplamTanken += Double.parseDouble(tankenStr);
+                    toplamSonstig += Double.parseDouble(sonstigStr);
+                    toplamTeslim += Double.parseDouble(teslimStr);
+                    toplamVorschuss += Double.parseDouble(vorschussStr);
                 } catch (Exception ignored) {}
             }
 
@@ -809,6 +902,7 @@ public class anamenü {
             lblToplamTeslim.setText("Übergabe: €" + String.format("%.2f", toplamTeslim));
             lblToplamVorschuss.setText("Vorschuss: €" + String.format("%.2f", toplamVorschuss));
         });
+
 
         panel.add(lblBas); panel.add(baslangicChooser);
         panel.add(lblBit); panel.add(bitisChooser);
@@ -826,21 +920,24 @@ public class anamenü {
     
     public static void exceldenTabloyaOku(String path, DefaultTableModel model) {
         try (FileInputStream fis = new FileInputStream(new File(path));
-             Workbook workbook = new XSSFWorkbook(fis);
-             BufferedWriter writer = new BufferedWriter(new FileWriter("suruculer.csv", true))) {
+             Workbook workbook = new XSSFWorkbook(fis)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             model.setRowCount(0); // Tabloyu temizle
 
+            // Mevcut sürücüleri oku
             List<String> mevcutSuruculer = new ArrayList<>();
             File surucuDosyasi = new File("suruculer.csv");
             if (surucuDosyasi.exists()) {
                 try (Scanner sc = new Scanner(surucuDosyasi)) {
                     while (sc.hasNextLine()) {
-                        mevcutSuruculer.add(sc.nextLine().trim());
+                        mevcutSuruculer.add(sc.nextLine().trim().toLowerCase());
                     }
                 }
             }
+
+            // Yeni sürücüleri dosyaya eklemek için yazıcı
+            BufferedWriter writer = new BufferedWriter(new FileWriter("suruculer.csv", true));
 
             java.text.SimpleDateFormat hedefFormat = new java.text.SimpleDateFormat("dd.MM.yyyy");
             String[] tarihFormatlari = {
@@ -874,9 +971,9 @@ public class anamenü {
                                         break;
                                     } catch (Exception ignored) {}
                                 }
-                                if (!parsed) rowData[j] = rawDate; // Anlaşılamadıysa olduğu gibi bırak
+                                if (!parsed) rowData[j] = rawDate;
                             } else {
-                                rowData[j] = ""; // Tanımsızsa
+                                rowData[j] = "";
                             }
                         } else {
                             switch (cell.getCellType()) {
@@ -888,19 +985,28 @@ public class anamenü {
                     }
                 }
 
+                // Sürücü kontrolü ve eklemesi
                 String surucu = rowData[0].toString().trim();
-                if (surucu.isEmpty()) continue;
-
-               
+                if (!surucu.isEmpty()) {
+                    String normalized = surucu.toLowerCase();
+                    if (!mevcutSuruculer.contains(normalized)) {
+                        writer.write(surucu);
+                        writer.newLine();
+                        mevcutSuruculer.add(normalized);
+                    }
+                }
 
                 model.insertRow(0, rowData);
             }
+
+            writer.close();
 
         } catch (IOException e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(null, "Excel'den veri okuma hatası: " + e.getMessage());
         }
     }
+
 
 
 
