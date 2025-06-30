@@ -35,7 +35,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 //Ekstra (JTextComponent, EventListener vs.)
 import javax.swing.text.JTextComponent;
-
+import java.util.Calendar;
 
 
 //AWT
@@ -76,9 +76,10 @@ public class anamenü {
     private JPanel filtrePanel; 
 
     public anamenü() {
+    	
         initialize();
         try {
-        	ExcelExporter.exportToExcel(tableModel, seciliExcelYolu);
+        	ExcelExporter.exportToExcel(tableModel,"surusler.xlsx");
         	
       
         } catch (Exception e) {
@@ -118,7 +119,7 @@ public class anamenü {
     }
     private int hesaplaToplamGelir(String plaka) {
         int toplam = 0;
-        try (FileInputStream fis = new FileInputStream(seciliExcelYolu)) {
+        try (FileInputStream fis = new FileInputStream("surusler.xlsx")) {
             Workbook wb = new XSSFWorkbook(fis);
             Sheet sheet = wb.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -203,29 +204,19 @@ public class anamenü {
         btnGuncelle.setFont(anaFont);
         btnGuncelle.addActionListener(e -> {
             try {
-                ExcelExporter.exportToExcel(tableModel, seciliExcelYolu);
+                ExcelExporter.exportToExcel(tableModel,"surusler.xlsx");
                 JOptionPane.showMessageDialog(frame, "Değişiklikler başarıyla Excel dosyasına kaydedildi.");
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(frame, "Kaydetme hatası: " + ex.getMessage());
             }
         });
 
-        JButton btnExcelSec = new JButton("Excel Dosyası Seç");
-        btnExcelSec.setFont(anaFont);
-        btnExcelSec.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            int secim = fileChooser.showOpenDialog(frame);
-            if (secim == JFileChooser.APPROVE_OPTION) {
-                File secilenDosya = fileChooser.getSelectedFile();
-                seciliExcelYolu = secilenDosya.getAbsolutePath();
-                exceldenTabloyaOku(seciliExcelYolu, tableModel);
-                JOptionPane.showMessageDialog(frame, "Excel dosyası yüklendi:\n" + seciliExcelYolu);
-            }
-        });
+   
+     
 
         JPanel guncellePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
         guncellePanel.add(btnGuncelle);
-        guncellePanel.add(btnExcelSec);
+    
 
         ustIcPanel.add(guncellePanel, BorderLayout.EAST);
         ustPanel.add(ustIcPanel, BorderLayout.NORTH);
@@ -322,7 +313,7 @@ public class anamenü {
         });
 
         frame.setVisible(true);
-        exceldenTabloyaOku(seciliExcelYolu, tableModel);
+        exceldenTabloyaOku("surusler.xlsx", tableModel);
     }
 
 
@@ -622,6 +613,7 @@ public class anamenü {
         // Giriş alanları
         JDateChooser dateChooser = new JDateChooser();
         dateChooser.setDateFormatString("dd.MM.yyyy");
+      
         JTextField tfStartKm = new JTextField(5);
         JTextField tfEndKm = new JTextField(5);
         JTextField tfBar = new JTextField(5);
@@ -730,7 +722,7 @@ public class anamenü {
                 java.nio.file.Files.write(path, lines);
 
                 // Excel güncelle
-                ExcelExporter.exportToExcel(tableModel, seciliExcelYolu);
+                ExcelExporter.exportToExcel(tableModel, "surusler.xlsx");
 
                 JOptionPane.showMessageDialog(null, "Sürüş eklendi ve Excel dosyası güncellendi.");
 
@@ -769,7 +761,7 @@ public class anamenü {
 
 
     private void yenidenTabloyuYukle() {
-        exceldenTabloyaOku(seciliExcelYolu, tableModel);
+        exceldenTabloyaOku("surusler.xlsx", tableModel);
     }
 
     // setFormPanel metodu güncellendi
@@ -966,6 +958,15 @@ public class anamenü {
                                 for (String format : tarihFormatlari) {
                                     try {
                                         java.util.Date parsedDate = new java.text.SimpleDateFormat(format).parse(rawDate);
+
+                                        // 🚫 2026 yılı kontrolü
+                                        if (parsedDate.getYear() + 1900 >= 2026) {
+                                        
+                                            workbook.close();
+                                            fis.close();
+                                            return;
+                                        }
+
                                         rowData[j] = hedefFormat.format(parsedDate);
                                         parsed = true;
                                         break;
@@ -987,6 +988,7 @@ public class anamenü {
 
                 // Sürücü kontrolü ve eklemesi
                 String surucu = rowData[0].toString().trim();
+                if (surucu.isEmpty() || surucu.equals("0")) continue;
                 if (!surucu.isEmpty()) {
                     String normalized = surucu.toLowerCase();
                     if (!mevcutSuruculer.contains(normalized)) {
