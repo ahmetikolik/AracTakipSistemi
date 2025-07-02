@@ -1,28 +1,24 @@
 package GUİ;
 
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.util.Locale;
+
 public class Plaka {
     private String plaka;
-    private int baslangicKm;
     private int sonKm;
-    private int bakimli; // 1 = bakımlı, 0 = bakımsız
 
-    public Plaka(String plaka, int baslangicKm, int sonKm, int bakimli) {
+    public Plaka(String plaka, int sonKm) {
         this.plaka = plaka;
-        this.baslangicKm = baslangicKm;
         this.sonKm = sonKm;
-        this.bakimli = bakimli;
     }
 
     public String getPlaka() {
         return plaka;
     }
 
-    public int getBaslangicKm() {
-        return baslangicKm;
-    }
-
-    public void setBaslangicKm(int baslangicKm) {
-        this.baslangicKm = baslangicKm;
+    public void setPlaka(String plaka) {
+        this.plaka = plaka;
     }
 
     public int getSonKm() {
@@ -33,24 +29,26 @@ public class Plaka {
         this.sonKm = sonKm;
     }
 
-    public int getBakimli() {
-        return bakimli;
+    public int getKalanKm() {
+        int mod = sonKm % 15000;
+        return (mod == 0) ? 15000 : 15000 - mod;
     }
 
-    public void setBakimli(int bakimli) {
-        this.bakimli = bakimli;
+    public boolean isBakimsiz() {
+        return (sonKm % 15000 == 0);
     }
 
-    public void guncelleKm(int yeniSonKm) {
-        this.sonKm = yeniSonKm;
-        if ((sonKm - baslangicKm) >= 15000) {
-            this.bakimli = 0;
-            this.baslangicKm = sonKm; // bakım sonrası başlangıç güncellenir
-        }
+    public boolean muayeneZamaniMi(String secilenAy) {
+        String bugununAyi = LocalDate.now().getMonth().getDisplayName(TextStyle.FULL, new Locale("tr", "TR"));
+        return bugununAyi.equalsIgnoreCase(secilenAy) && isBakimsiz();
     }
 
-    @Override
-    public String toString() {
-        return plaka + "," + baslangicKm + "," + sonKm + "," + bakimli;
+    public Object[] toObjectArray() {
+        return new Object[] {
+            plaka,
+            sonKm,
+            getKalanKm() + " km",
+            isBakimsiz() ? "BAKIMSIZ" : "BAKIMLI"
+        };
     }
 }
